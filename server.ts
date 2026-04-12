@@ -67,6 +67,21 @@ async function startServer() {
     }
   });
 
+  app.post('/api/auth/google', (req, res) => {
+    const { name, email, uid } = req.body;
+    let user = users.get(email);
+    if (user) {
+      // User exists, just return them (bypassing password check since Google authenticated them)
+      res.json(user);
+    } else {
+      // New user from Google
+      const role = email === 'tamil515253@gmail.com' ? 'admin' : 'student';
+      const newUser = { uid, name, email, role, password: uid }; // Use uid as dummy password
+      users.set(email, newUser);
+      res.json(newUser);
+    }
+  });
+
   // Notices
   app.get('/api/notices', (req, res) => {
     res.json(notices);

@@ -1,5 +1,6 @@
 import { Bell, BookOpen, Calendar, ChevronRight, Compass, GraduationCap, Home, LayoutGrid, LogOut, MessageSquare, Plus, Search, Settings, Users, X } from "lucide-react";
 import React, { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { cn } from "./lib/utils";
 import { DiscoverPage, AcademicsPage, ClubsPage, EventsPage, DiscussionsPage, SettingsPage } from "./pages";
 import { api, User } from "../api/client";
@@ -123,7 +124,7 @@ export default function App() {
 
         {/* Dashboard Grid / Pages */}
         {activeTab === "home" && <Dashboard notices={notices} clubs={clubs} searchQuery={searchQuery} userRole={userRole} user={user} setNotices={setNotices} />}
-        {activeTab === "discover" && <DiscoverPage />}
+        {activeTab === "discover" && <DiscoverPage searchQuery={searchQuery} />}
         {activeTab === "academics" && <AcademicsPage userRole={userRole} />}
         {activeTab === "clubs" && <ClubsPage clubs={clubs} searchQuery={searchQuery} />}
         {activeTab === "events" && <EventsPage />}
@@ -183,21 +184,10 @@ function LandingPage() {
       const result = await signInWithPopup(auth, googleProvider);
       const user = result.user;
       
-      // Attempt to login with Google credentials to our custom backend
-      try {
-        const loggedInUser = await api.login(user.email || "", user.uid);
-        localStorage.setItem('user', JSON.stringify(loggedInUser));
-        window.location.reload();
-      } catch (err) {
-        // If it fails, register the Google user first
-        try {
-          const newUser = await api.register(user.displayName || "Google User", user.email || "", user.uid);
-          localStorage.setItem('user', JSON.stringify(newUser));
-          window.location.reload();
-        } catch (regErr: any) {
-          setError("Failed to sync Google login with backend.");
-        }
-      }
+      // Sync Google user with our custom backend
+      const loggedInUser = await api.googleLogin(user.displayName || "Google User", user.email || "", user.uid);
+      localStorage.setItem('user', JSON.stringify(loggedInUser));
+      window.location.reload();
     } catch (err: any) {
       setError(err.message || "Google login failed. Please try again.");
     } finally {
@@ -387,6 +377,9 @@ function Dashboard({ notices, clubs, searchQuery, userRole, user, setNotices }: 
   const [newDesc, setNewDesc] = useState("");
   const [newTag, setNewTag] = useState("Academic");
   const [activeQuickLink, setActiveQuickLink] = useState<string | null>(null);
+  const [selectedNotice, setSelectedNotice] = useState<any>(null);
+  const [selectedClub, setSelectedClub] = useState<any>(null);
+  const [showAllNotices, setShowAllNotices] = useState(false);
 
   const dummyLinkData: Record<string, { title: string, content: React.ReactNode }> = {
     "Canvas": {
@@ -483,20 +476,26 @@ function Dashboard({ notices, clubs, searchQuery, userRole, user, setNotices }: 
                   <Plus className="w-4 h-4" /> New Notice
                 </button>
               )}
-              <button className="text-sm font-medium text-primary hover:text-primary-container transition-colors flex items-center gap-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-md px-2 py-1">
-                View all <ChevronRight className="w-4 h-4" />
-              </button>
+              {filteredNotices.length > 3 && (
+                <button 
+                  onClick={() => setShowAllNotices(!showAllNotices)} 
+                  className="text-sm font-medium text-primary hover:text-primary-container transition-colors flex items-center gap-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-md px-2 py-1"
+                >
+                  {showAllNotices ? "Show less" : "View all"} <ChevronRight className={cn("w-4 h-4 transition-transform", showAllNotices && "rotate-90")} />
+                </button>
+              )}
             </div>
           </div>
           
           <div className="space-y-4">
-            {filteredNotices.length > 0 ? filteredNotices.map((notice) => (
+            {filteredNotices.length > 0 ? (showAllNotices ? filteredNotices : filteredNotices.slice(0, 3)).map((notice) => (
               <NoticeCard 
                 key={notice.id}
                 tag={notice.tag} 
                 title={notice.title} 
-                time={notice.time || new Date(notice.createdAt?.toDate()).toLocaleDateString()}
+                time={notice.time || (notice.createdAt ? new Date(notice.createdAt).toLocaleDateString() : "Just now")}
                 desc={notice.desc}
+                onClick={() => setSelectedNotice(notice)}
               />
             )) : (
               <div className="text-center py-8 text-on-surface-variant">
@@ -525,6 +524,7 @@ function Dashboard({ notices, clubs, searchQuery, userRole, user, setNotices }: 
                 time={club.time || "TBD"}
                 location={club.location || "TBD"}
                 members={club.members || 0}
+                onClick={() => setSelectedClub(club)}
               />
             )) : (
               <div className="col-span-full text-center py-8 text-on-surface-variant">
@@ -579,19 +579,127 @@ function Dashboard({ notices, clubs, searchQuery, userRole, user, setNotices }: 
       </div>
 
       {/* Quick Link Modal */}
-      {activeQuickLink && dummyLinkData[activeQuickLink] && (
-        <div className="fixed inset-0 bg-surface-lowest/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      {activeQuickLink && dummyLinkData[activeQuickLink] && createPortal(
+        <div className="fixed inset-0 bg-surface-lowest/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
           <div className="bg-surface-lowest border border-outline-variant/20 rounded-2xl p-6 w-full max-w-sm shadow-[0_20px_60px_-15px_rgba(53,37,205,0.1)]">
             <div className="flex justify-between items-center mb-4">
               <h3 className="font-display font-bold text-lg">{dummyLinkData[activeQuickLink].title}</h3>
-              <button onClick={() => setActiveQuickLink(null)} className="p-1 hover:bg-surface-low rounded-md"><X className="w-5 h-5"/></button>
+              <button onClick={(e) => { e.stopPropagation(); setActiveQuickLink(null); }} className="p-1 hover:bg-surface-low rounded-md"><X className="w-5 h-5"/></button>
             </div>
             <div className="bg-surface-low rounded-xl p-4 border border-outline-variant/20">
               {dummyLinkData[activeQuickLink].content}
             </div>
-            <button onClick={() => setActiveQuickLink(null)} className="w-full mt-6 py-2.5 bg-primary text-on-primary rounded-lg font-medium hover:bg-primary-container transition-colors">Close</button>
+            <button onClick={(e) => { e.stopPropagation(); setActiveQuickLink(null); }} className="w-full mt-6 py-2.5 bg-primary text-on-primary rounded-lg font-medium hover:bg-primary-container transition-colors">Close</button>
           </div>
-        </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Add Notice Modal */}
+      {isAddingNotice && createPortal(
+        <div className="fixed inset-0 bg-surface-lowest/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+          <div className="bg-surface-lowest border border-outline-variant/20 rounded-2xl p-6 w-full max-w-md shadow-[0_20px_60px_-15px_rgba(53,37,205,0.1)]">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="font-display font-bold text-lg">Create New Notice</h3>
+              <button onClick={(e) => { e.stopPropagation(); setIsAddingNotice(false); }} className="p-1 hover:bg-surface-low rounded-md"><X className="w-5 h-5"/></button>
+            </div>
+            <form onSubmit={handleAddNotice} className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-on-surface-variant mb-1 ml-1">Title</label>
+                <input 
+                  type="text" 
+                  value={newTitle}
+                  onChange={e => setNewTitle(e.target.value)}
+                  className="w-full bg-surface-low rounded-xl py-2 px-3 text-sm outline-none border border-outline-variant/20 focus:border-primary/30 focus:ring-2 focus:ring-primary/20 transition-all"
+                  placeholder="Notice Title"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-on-surface-variant mb-1 ml-1">Tag</label>
+                <select 
+                  value={newTag}
+                  onChange={e => setNewTag(e.target.value)}
+                  className="w-full bg-surface-low rounded-xl py-2 px-3 text-sm outline-none border border-outline-variant/20 focus:border-primary/30 focus:ring-2 focus:ring-primary/20 transition-all"
+                >
+                  <option value="General">General</option>
+                  <option value="Academic">Academic</option>
+                  <option value="Urgent">Urgent</option>
+                  <option value="Event">Event</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-on-surface-variant mb-1 ml-1">Description</label>
+                <textarea 
+                  value={newDesc}
+                  onChange={e => setNewDesc(e.target.value)}
+                  className="w-full bg-surface-low rounded-xl py-2 px-3 text-sm outline-none border border-outline-variant/20 focus:border-primary/30 focus:ring-2 focus:ring-primary/20 transition-all min-h-[100px]"
+                  placeholder="Notice Description"
+                  required
+                />
+              </div>
+              <button type="submit" className="w-full py-2.5 bg-primary text-on-primary rounded-lg font-medium hover:bg-primary-container transition-colors">Post Notice</button>
+            </form>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* View Notice Modal */}
+      {selectedNotice && createPortal(
+        <div className="fixed inset-0 bg-surface-lowest/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4" onClick={(e) => { e.stopPropagation(); setSelectedNotice(null); }}>
+          <div className="bg-surface-lowest border border-outline-variant/20 rounded-2xl p-6 w-full max-w-md shadow-[0_20px_60px_-15px_rgba(53,37,205,0.1)]" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-start mb-4">
+              <div>
+                <span className={cn(
+                  "px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider mb-2 inline-block",
+                  selectedNotice.tag === "Urgent" ? "bg-red-100 text-red-700" : "bg-surface-low text-on-surface-variant"
+                )}>
+                  {selectedNotice.tag}
+                </span>
+                <h3 className="font-display font-bold text-xl">{selectedNotice.title}</h3>
+                <p className="text-xs text-on-surface-variant mt-1">{selectedNotice.time || (selectedNotice.createdAt ? new Date(selectedNotice.createdAt).toLocaleDateString() : "Just now")}</p>
+              </div>
+              <button onClick={(e) => { e.stopPropagation(); setSelectedNotice(null); }} className="p-1 hover:bg-surface-low rounded-md"><X className="w-5 h-5"/></button>
+            </div>
+            <div className="bg-surface-low rounded-xl p-4 border border-outline-variant/20 text-sm text-on-surface leading-relaxed whitespace-pre-wrap min-h-[100px] max-h-[60vh] overflow-y-auto">
+              {selectedNotice.desc || "No description available for this notice."}
+            </div>
+            <button onClick={(e) => { e.stopPropagation(); setSelectedNotice(null); }} className="w-full mt-6 py-2.5 bg-primary text-on-primary rounded-lg font-medium hover:bg-primary-container transition-colors">Close</button>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* View Club Modal */}
+      {selectedClub && createPortal(
+        <div className="fixed inset-0 bg-surface-lowest/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4" onClick={(e) => { e.stopPropagation(); setSelectedClub(null); }}>
+          <div className="bg-surface-lowest border border-outline-variant/20 rounded-2xl p-6 w-full max-w-md shadow-[0_20px_60px_-15px_rgba(53,37,205,0.1)]" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-start mb-4">
+              <div>
+                <h3 className="font-display font-bold text-xl">{selectedClub.name}</h3>
+                <p className="text-xs text-primary font-medium mt-1">{selectedClub.event}</p>
+              </div>
+              <button onClick={(e) => { e.stopPropagation(); setSelectedClub(null); }} className="p-1 hover:bg-surface-low rounded-md"><X className="w-5 h-5"/></button>
+            </div>
+            <div className="bg-surface-low rounded-xl p-4 border border-outline-variant/20 text-sm text-on-surface space-y-3">
+              <div className="flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-on-surface-variant" />
+                <span><strong>Time:</strong> {selectedClub.time}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Compass className="w-4 h-4 text-on-surface-variant" />
+                <span><strong>Location:</strong> {selectedClub.location}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Users className="w-4 h-4 text-on-surface-variant" />
+                <span><strong>Members:</strong> {selectedClub.members} active members</span>
+              </div>
+            </div>
+            <button onClick={(e) => { e.stopPropagation(); setSelectedClub(null); }} className="w-full mt-6 py-2.5 bg-primary text-on-primary rounded-lg font-medium hover:bg-primary-container transition-colors">Close</button>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );
@@ -617,11 +725,12 @@ function NavItem({ icon: Icon, label, active, onClick }: { icon: any, label: str
   );
 }
 
-function NoticeCard({ tag, title, time, desc }: { key?: string | number, tag: string, title: string, time: string, desc: string }) {
+function NoticeCard({ tag, title, time, desc, onClick }: { key?: string | number, tag: string, title: string, time: string, desc: string, onClick?: () => void }) {
   const isUrgent = tag === "Urgent";
   return (
     <div 
       tabIndex={0}
+      onClick={onClick}
       className="group p-4 rounded-xl border border-outline-variant/20 hover:border-primary/20 hover:bg-surface-low/50 transition-all cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
     >
       <div className="flex items-start justify-between mb-2">
@@ -641,10 +750,11 @@ function NoticeCard({ tag, title, time, desc }: { key?: string | number, tag: st
   );
 }
 
-function ClubCard({ name, event, time, location, members }: { key?: string | number, name: string, event: string, time: string, location: string, members: number }) {
+function ClubCard({ name, event, time, location, members, onClick }: { key?: string | number, name: string, event: string, time: string, location: string, members: number, onClick?: () => void }) {
   return (
     <div 
       tabIndex={0}
+      onClick={onClick}
       className="p-4 rounded-xl border border-outline-variant/20 hover:shadow-[0_8px_24px_rgba(53,37,205,0.06)] transition-all cursor-pointer bg-surface-lowest group focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
     >
       <div className="flex items-center justify-between mb-3">

@@ -3,7 +3,7 @@ import { MessageCircle, X, Send, Sparkles, User, Loader2 } from "lucide-react";
 import { GoogleGenAI } from "@google/genai";
 import { cn } from "./lib/utils";
 
-const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY || "dummy_key" });
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 export function RizviChatbot() {
   const [isOpen, setIsOpen] = useState(false);

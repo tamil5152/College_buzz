@@ -35,6 +35,19 @@ export const api = {
     }
     return response.json();
   },
+
+  googleLogin: async (name: string, email: string, uid: string): Promise<User> => {
+    const response = await fetch(`${API_BASE_URL}/auth/google`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, email, uid })
+    });
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Google Login failed');
+    }
+    return response.json();
+  },
   
   logout: async (): Promise<void> => {
     // In a real app, you might invalidate a token here
