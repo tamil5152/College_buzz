@@ -1,0 +1,11 @@
+com/collegebuzz/DataSeeder.class
+com/collegebuzz/model/Notice.class
+com/collegebuzz/controller/NoticeController.class
+com/collegebuzz/repository/NoticeRepository.class
+com/collegebuzz/controller/AuthController.class
+com/collegebuzz/model/User.class
+com/collegebuzz/model/Club.class
+com/collegebuzz/controller/ClubController.class
+com/collegebuzz/repository/UserRepository.class
+com/collegebuzz/repository/ClubRepository.class
+com/collegebuzz/CollegeBuzzApplication.class
