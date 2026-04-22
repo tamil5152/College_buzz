@@ -115,9 +115,4 @@ Distributed under the MIT License. See `LICENSE` for more information.
 
 ---
 
-## 🙏 Acknowledgments
-
-*   [Google AI Studio](https://aistudio.google.com/) for the Gemini API
-*   [Tailwind CSS](https://tailwindcss.com/) for the styling framework
-*   [Lucide](https://lucide.dev/) for the amazing icon set
 
